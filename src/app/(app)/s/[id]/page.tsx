@@ -5,12 +5,48 @@ import { createClient } from "@/lib/supabase/server";
 import { canAdminSpace } from "@/lib/auth/guards";
 import { createServiceClient } from "@/lib/supabase/service";
 import { LEVEL_EMOJI, LEVEL_LABEL } from "@/lib/tree";
+import { fetchFeed } from "@/lib/feed";
 import { Button, Card, Chip, PageTitle } from "@/components/ui";
+import { PostCard } from "@/components/post-card";
 import { setHomeSpace } from "../actions";
 import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-panel";
+import { ModerationQueue } from "./moderation-queue";
 import { SpaceForm } from "@/app/(app)/admin/forms";
 
 export const metadata: Metadata = { title: "Space" };
+
+async function Feed({
+  spaceId,
+  userId,
+  isSpaceAdmin,
+}: {
+  spaceId: string;
+  userId: string;
+  isSpaceAdmin: boolean;
+}) {
+  const posts = await fetchFeed(spaceId, { userId, includeOwnPending: true });
+
+  if (posts.length === 0) {
+    return (
+      <Card className="text-center text-ink-soft">
+        <p className="mb-1 text-3xl">🌼</p>
+        No glimpses here yet — be the first to share!
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {posts.map((post) => (
+        <PostCard
+          key={post.id}
+          post={post}
+          viewerCanDelete={isSpaceAdmin || post.author_user_id === userId}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default async function SpacePage({
   params,
@@ -141,9 +177,9 @@ export default async function SpacePage({
         </Card>
       )}
 
-      <Card className="text-center text-ink-soft">
-        📜 The glimpse feed arrives in Phase 4.
-      </Card>
+      {isSpaceAdmin && <ModerationQueue spaceId={space.id} />}
+
+      <Feed spaceId={space.id} userId={user.id} isSpaceAdmin={isSpaceAdmin} />
 
       {isSpaceAdmin && adminData && (
         <>
