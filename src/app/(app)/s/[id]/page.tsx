@@ -6,7 +6,7 @@ import { canAdminSpace } from "@/lib/auth/guards";
 import { createServiceClient } from "@/lib/supabase/service";
 import { LEVEL_EMOJI, LEVEL_LABEL } from "@/lib/tree";
 import { fetchFeed } from "@/lib/feed";
-import { Button, Card, Chip, PageTitle } from "@/components/ui";
+import { Button, ButtonLink, Card, Chip, PageTitle } from "@/components/ui";
 import { PostCard } from "@/components/post-card";
 import { setHomeSpace } from "../actions";
 import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-panel";
@@ -177,6 +177,9 @@ export default async function SpacePage({
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <ButtonLink href={`/replay/${space.id}`} variant="secondary">
+          🎬 Gokul Replay
+        </ButtonLink>
         {isMember || isSpaceAdmin ? (
           <form action={setHomeSpace}>
             <input type="hidden" name="space_id" value={space.id} />
