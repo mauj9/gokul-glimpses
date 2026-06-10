@@ -24,7 +24,15 @@ export default async function AdminPage() {
 
   return (
     <main className="space-y-6">
-      <PageTitle>🛡️ Admin console</PageTitle>
+      <div className="flex items-center justify-between">
+        <PageTitle>🛡️ Admin console</PageTitle>
+        <Link
+          href="/admin/audit"
+          className="text-sm font-semibold text-peacock underline-offset-2 hover:underline"
+        >
+          📋 Audit log
+        </Link>
+      </div>
 
       <section className="space-y-3">
         <h2 className="font-display text-lg font-bold text-ink">Parvas</h2>

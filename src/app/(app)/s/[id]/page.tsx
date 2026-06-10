@@ -14,6 +14,7 @@ import { ModerationQueue } from "./moderation-queue";
 import { FlagQueue } from "./flag-queue";
 import { TagFilterBar } from "./tag-filter";
 import { CustomTagsPanel } from "./tags-panel";
+import { EngagementCard } from "./engagement-card";
 import { SpaceForm } from "@/app/(app)/admin/forms";
 
 export const metadata: Metadata = { title: "Space" };
@@ -226,6 +227,7 @@ export default async function SpacePage({
 
       {isSpaceAdmin && adminData && (
         <>
+          <EngagementCard spaceId={space.id} />
           <Card>
             <p className="mb-3 font-display font-bold text-peacock-deep">
               ⚙️ Space settings
