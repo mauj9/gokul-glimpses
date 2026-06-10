@@ -2,17 +2,24 @@ import { Card, Chip } from "@/components/ui";
 import { avatarEmoji } from "@/lib/avatars";
 import { timeAgo, type FeedPost } from "@/lib/feed";
 import { PostMenu } from "./post-menu";
+import { ReactionBar } from "./reaction-bar";
+import { FlagButton } from "./flag-button";
 
 /**
  * One glimpse in the feed. Server component — media URLs are already signed.
  * `viewerCanDelete` = author or space admin (computed server-side).
+ * `readOnly` = parva closed (reactions disabled).
  */
 export function PostCard({
   post,
   viewerCanDelete,
+  viewerId,
+  readOnly = false,
 }: {
   post: FeedPost;
   viewerCanDelete: boolean;
+  viewerId: string;
+  readOnly?: boolean;
 }) {
   const images = post.media.filter((m) => m.kind === "image");
   const video = post.media.find((m) => m.kind === "video");
@@ -85,6 +92,18 @@ export function PostCard({
               {t.emoji} {t.label}
             </Chip>
           ))}
+        </div>
+      )}
+
+      {post.status === "live" && (
+        <div className="flex items-center justify-between">
+          <ReactionBar
+            postId={post.id}
+            counts={post.reactions}
+            mine={post.myReaction}
+            readOnly={readOnly}
+          />
+          {post.author_user_id !== viewerId && <FlagButton postId={post.id} />}
         </div>
       )}
     </Card>

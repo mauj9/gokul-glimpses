@@ -11,6 +11,9 @@ import { PostCard } from "@/components/post-card";
 import { setHomeSpace } from "../actions";
 import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-panel";
 import { ModerationQueue } from "./moderation-queue";
+import { FlagQueue } from "./flag-queue";
+import { TagFilterBar } from "./tag-filter";
+import { CustomTagsPanel } from "./tags-panel";
 import { SpaceForm } from "@/app/(app)/admin/forms";
 
 export const metadata: Metadata = { title: "Space" };
@@ -19,41 +22,71 @@ async function Feed({
   spaceId,
   userId,
   isSpaceAdmin,
+  isClosed,
+  tagSlug,
 }: {
   spaceId: string;
   userId: string;
   isSpaceAdmin: boolean;
+  isClosed: boolean;
+  tagSlug: string | null;
 }) {
-  const posts = await fetchFeed(spaceId, { userId, includeOwnPending: true });
+  const posts = await fetchFeed(spaceId, {
+    userId,
+    includeOwnPending: true,
+    tagSlug: tagSlug ?? undefined,
+  });
 
-  if (posts.length === 0) {
-    return (
-      <Card className="text-center text-ink-soft">
-        <p className="mb-1 text-3xl">🌼</p>
-        No glimpses here yet — be the first to share!
-      </Card>
-    );
+  // Tag bar shows tags actually used in this feed (unfiltered slice keeps it
+  // stable while a filter is active).
+  const allPosts = tagSlug
+    ? await fetchFeed(spaceId, { userId, includeOwnPending: true })
+    : posts;
+  const tagMap = new Map<string, { slug: string; label: string; emoji: string }>();
+  for (const p of allPosts) {
+    for (const t of p.tags) tagMap.set(t.slug, t);
   }
 
   return (
-    <div className="space-y-3">
-      {posts.map((post) => (
-        <PostCard
-          key={post.id}
-          post={post}
-          viewerCanDelete={isSpaceAdmin || post.author_user_id === userId}
-        />
-      ))}
-    </div>
+    <>
+      <TagFilterBar
+        spaceId={spaceId}
+        tags={[...tagMap.values()]}
+        active={tagSlug}
+      />
+      {posts.length === 0 ? (
+        <Card className="text-center text-ink-soft">
+          <p className="mb-1 text-3xl">🌼</p>
+          {tagSlug
+            ? "No glimpses with this tag yet."
+            : "No glimpses here yet — be the first to share!"}
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {posts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              viewerId={userId}
+              readOnly={isClosed}
+              viewerCanDelete={isSpaceAdmin || post.author_user_id === userId}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
 export default async function SpacePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tag?: string }>;
 }) {
   const { id } = await params;
+  const { tag } = await searchParams;
   const { user, hasGardenAccess, homeSpaceId } = await getGardenStatus();
   const supabase = await createClient();
 
@@ -178,8 +211,15 @@ export default async function SpacePage({
       )}
 
       {isSpaceAdmin && <ModerationQueue spaceId={space.id} />}
+      {isSpaceAdmin && <FlagQueue spaceId={space.id} />}
 
-      <Feed spaceId={space.id} userId={user.id} isSpaceAdmin={isSpaceAdmin} />
+      <Feed
+        spaceId={space.id}
+        userId={user.id}
+        isSpaceAdmin={isSpaceAdmin}
+        isClosed={isClosed}
+        tagSlug={tag ?? null}
+      />
 
       {isSpaceAdmin && adminData && (
         <>
@@ -204,6 +244,7 @@ export default async function SpacePage({
             </p>
             <SpaceAdminsPanel spaceId={space.id} admins={adminData.admins} />
           </Card>
+          <CustomTagsPanel spaceId={space.id} />
           {space.level !== "shakha" && (
             <Card>
               <p className="mb-3 font-display font-bold text-peacock-deep">
