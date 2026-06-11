@@ -195,8 +195,9 @@ export function Composer({
         setError(result.error);
       } else if (result?.pending) {
         setPendingNotice(true);
+      } else if (result?.ok) {
+        router.push(`/s/${spaceId}`);
       }
-      // On success createPost redirects to the space feed.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {

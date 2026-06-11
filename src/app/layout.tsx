@@ -21,6 +21,14 @@ export const metadata: Metadata = {
   description:
     "A private space for Balagokulam families to share holiday glimpses.",
   robots: { index: false, follow: false },
+  appleWebApp: {
+    capable: true,
+    title: "Glimpses",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

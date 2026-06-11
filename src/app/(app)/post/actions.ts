@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth/session";
@@ -23,7 +22,9 @@ export type PostPayload = {
   tagSlugs: string[]; // predefined slugs + raw custom entries
 };
 
-export type CreatePostResult = { error?: string; pending?: boolean } | null;
+export type CreatePostResult =
+  | { error?: string; pending?: boolean; ok?: boolean }
+  | null;
 
 export async function createPost(
   payload: PostPayload,
@@ -95,21 +96,25 @@ export async function createPost(
       .from("tags")
       .select("id, slug")
       .in("slug", slugs);
-    const known = new Map((existing ?? []).map((t) => [t.slug, t.id]));
+    let known = new Map((existing ?? []).map((t) => [t.slug, t.id]));
     const missing = slugs.filter((s) => !known.has(s));
     if (missing.length > 0) {
-      const { data: created } = await supabase
+      // ON CONFLICT DO NOTHING so a concurrent post creating the same slug
+      // can't abort the whole batch.
+      await supabase.from("tags").upsert(
+        missing.map((slug) => ({
+          slug,
+          label: `#${slug}`,
+          is_predefined: false,
+          created_by: user.id,
+        })),
+        { onConflict: "slug", ignoreDuplicates: true },
+      );
+      const { data: refreshed } = await supabase
         .from("tags")
-        .insert(
-          missing.map((slug) => ({
-            slug,
-            label: `#${slug}`,
-            is_predefined: false,
-            created_by: user.id,
-          })),
-        )
-        .select("id, slug");
-      (created ?? []).forEach((t) => known.set(t.slug, t.id));
+        .select("id, slug")
+        .in("slug", slugs);
+      known = new Map((refreshed ?? []).map((t) => [t.slug, t.id]));
     }
     const tagIds = slugs.map((s) => known.get(s)).filter(Boolean) as string[];
     if (tagIds.length > 0) {
@@ -130,7 +135,7 @@ export async function createPost(
 
   revalidatePath(`/s/${payload.spaceId}`);
   if (status === "pending") return { pending: true };
-  redirect(`/s/${payload.spaceId}`);
+  return { ok: true };
 }
 
 export async function deletePost(formData: FormData): Promise<void> {

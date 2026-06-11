@@ -62,6 +62,29 @@ spaces with `visibility = 'unlisted'` (other than the space being viewed itself)
 Each phase ends with: `lint` + `typecheck` + `build` green, self-review of the
 diff, and a commit.
 
+**Status (June 10, 2026): all 8 phases implemented.** Awaiting Supabase + R2
+credentials for the end-to-end staging smoke test (see DEPLOYMENT.md §4).
+
+## Known gaps / future work
+
+- **R2 orphan cleanup:** hard-deleting a parva/post removes DB rows but not
+  R2 objects. Add a cleanup script or R2 lifecycle rule before heavy use.
+- **No post text editing** — authors can delete + repost (PRD "CRUD" is
+  otherwise covered). Easy to add later.
+- **Feeds cap at the latest 50 posts** — no pagination yet.
+- **No offline service worker** — installable PWA via manifest; offline
+  caching deferred.
+- **Placeholder app icons** (generated flat artwork) — replace files in
+  `public/icons/` with real branding when ready.
+- **Unlisted spaces are hidden, not secret:** any garden member with API
+  knowledge could enumerate space names via PostgREST (their *posts* stay out
+  of parent feeds regardless). Matches PRD semantics ("hidden from directory,
+  accessible via URL"); tighten `spaces_select` RLS if stricter is wanted.
+- **Video duration enforced client-side only** (30s); server enforces size
+  caps + a DB check on recorded duration metadata.
+- **No notifications** (email/push) — candidate for a later phase.
+- **React Native app** deferred; PWA-first per DECISIONS #16.
+
 ## Design tokens
 
 | Token | Value | Use |
