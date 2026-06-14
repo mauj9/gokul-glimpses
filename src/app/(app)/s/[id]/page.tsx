@@ -170,7 +170,9 @@ export default async function SpacePage({
           <span>{parva?.name}</span>
           {isClosed && <Chip>🔒 Read-only</Chip>}
           {space.visibility === "unlisted" && <Chip>🙈 Unlisted</Chip>}
-          <span>· {memberCount ?? 0} families</span>
+          <span>
+            · {memberCount ?? 0} {memberCount === 1 ? "family" : "families"}
+          </span>
         </div>
         {space.description && (
           <p className="mt-2 text-ink-soft">{space.description}</p>

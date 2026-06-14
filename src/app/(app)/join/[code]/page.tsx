@@ -69,8 +69,11 @@ export default async function JoinPage({
           <p className="mb-2 text-ink-soft">{space.description}</p>
         )}
         <p className="mb-5 text-sm text-ink-soft">
-          {memberCount} families are already sharing here. You&apos;ve been
-          invited to join them!
+          {memberCount === 0
+            ? "Be the first family to share here!"
+            : `${memberCount} ${
+                memberCount === 1 ? "family is" : "families are"
+              } already sharing here. You've been invited to join them!`}
         </p>
         <form action={joinSpace}>
           <input type="hidden" name="code" value={code} />
