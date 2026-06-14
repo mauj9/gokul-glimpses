@@ -105,6 +105,56 @@ export async function deleteParva(formData: FormData): Promise<void> {
 
 // ---------------------------------------------------------------- spaces
 
+/**
+ * Hard-delete a space and everything beneath it (child spaces, posts, media
+ * rows, reactions, tags, members, admins, flags — all via ON DELETE CASCADE).
+ * Global-admin only; the auto-managed National apex can't be deleted here.
+ */
+export async function deleteSpace(formData: FormData): Promise<void> {
+  const user = await requireGlobalAdmin();
+  const spaceId = String(formData.get("space_id") ?? "");
+
+  const service = createServiceClient();
+  const { data: space } = await service
+    .from("spaces")
+    .select("id, name, level, parva_id")
+    .eq("id", spaceId)
+    .maybeSingle();
+  if (!space) return;
+  if (space.level === "national") return; // managed automatically per parva
+
+  // Record the blast radius for the audit ledger before it's gone.
+  const { data: descendants } = await service
+    .from("spaces")
+    .select("id")
+    .contains("path", [spaceId]);
+  const spaceIds = (descendants ?? []).map((s) => s.id);
+  const { count: postCount } = await service
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .in("space_id", spaceIds.length ? spaceIds : [spaceId]);
+
+  const { error } = await service.from("spaces").delete().eq("id", spaceId);
+  if (!error) {
+    await writeAudit({
+      actorId: user.id,
+      actorEmail: user.email,
+      action: "space.delete",
+      entityType: "space",
+      entityId: spaceId,
+      meta: {
+        name: space.name,
+        level: space.level,
+        parvaId: space.parva_id,
+        spacesRemoved: spaceIds.length,
+        postsRemoved: postCount ?? 0,
+      },
+    });
+  }
+  revalidatePath(`/admin/parvas/${space.parva_id}`);
+  revalidatePath("/spaces");
+}
+
 export async function createSpace(
   _prev: FormState,
   formData: FormData,
