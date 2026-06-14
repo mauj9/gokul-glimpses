@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireGlobalAdmin } from "@/lib/auth/guards";
 import { createServiceClient } from "@/lib/supabase/service";
+import { ensureNationalSpace } from "@/lib/spaces";
 import { buildSpaceTree, LEVEL_EMOJI, type SpaceNode, type SpaceRow } from "@/lib/tree";
 import { Card, Chip, PageTitle } from "@/components/ui";
 import { SpaceForm } from "../../forms";
@@ -43,9 +44,12 @@ export default async function ManageParvaPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireGlobalAdmin();
+  const user = await requireGlobalAdmin();
   const { id } = await params;
   const service = createServiceClient();
+
+  // Self-heal parvas created before National was auto-provisioned.
+  await ensureNationalSpace(id, user);
 
   const [{ data: parva }, { data: spaces }] = await Promise.all([
     service.from("parvas").select("id, name, status").eq("id", id).maybeSingle(),
@@ -68,7 +72,7 @@ export default async function ManageParvaPage({
       <Card>
         {rows.length === 0 ? (
           <p className="text-center text-ink-soft">
-            No spaces yet — create the top-level National space below.
+            Setting up the National space… add a Sambhag under it below.
           </p>
         ) : (
           <TreeView nodes={tree} />

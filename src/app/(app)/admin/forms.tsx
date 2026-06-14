@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
-import { LEVEL_LABEL, childLevelOf, type SpaceLevel } from "@/lib/tree";
+import { LEVEL_LABEL, LEVEL_ORDER, childLevelOf, type SpaceLevel } from "@/lib/tree";
 import {
   createParva,
   createSpace,
@@ -51,22 +51,35 @@ export function SpaceForm({
   parentOptions,
 }: {
   parvaId: string;
-  /** [] ⇒ only top-level (National) creation is offered. */
+  /** Parents a new space can nest under (National downward; never empty in
+   *  practice since National is auto-created). */
   parentOptions: { id: string; name: string; level: SpaceLevel }[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     createSpace,
     null,
   );
-  const [parentId, setParentId] = useState("");
+  // Order National → Sambhag → Vibhag, then by name, and default to the first.
+  const sortedParents = [...parentOptions].sort(
+    (a, b) =>
+      LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level) ||
+      a.name.localeCompare(b.name),
+  );
+  const [parentId, setParentId] = useState(sortedParents[0]?.id ?? "");
 
   // Mirror the server's level derivation so the admin sees what they'll create.
-  const resultingLevel: SpaceLevel | null = parentId
-    ? (() => {
-        const parent = parentOptions.find((p) => p.id === parentId);
-        return parent ? childLevelOf(parent.level) : null;
-      })()
-    : "national";
+  const parent = sortedParents.find((p) => p.id === parentId);
+  const resultingLevel: SpaceLevel | null = parent
+    ? childLevelOf(parent.level)
+    : null;
+
+  if (sortedParents.length === 0) {
+    return (
+      <p className="text-sm text-ink-soft">
+        Setting up the National space — refresh in a moment to add spaces.
+      </p>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-3">
@@ -89,20 +102,23 @@ export function SpaceForm({
           value={parentId}
           onChange={(e) => setParentId(e.target.value)}
         >
-          <option value="">— Top level (National) —</option>
-          {parentOptions.map((p) => (
+          {sortedParents.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name} ({LEVEL_LABEL[p.level]})
             </option>
           ))}
         </select>
-        {resultingLevel && (
+        {resultingLevel ? (
           <p className="mt-1 text-sm text-ink-soft">
             This will be a{" "}
             <strong className="text-peacock-deep">
               {LEVEL_LABEL[resultingLevel]}
             </strong>
             .
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-ink-soft">
+            A Shakha is the smallest space — it can&apos;t have children.
           </p>
         )}
       </div>
@@ -133,8 +149,12 @@ export function SpaceForm({
       {state?.error && (
         <p className="text-sm font-semibold text-danger">{state.error}</p>
       )}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Creating…" : "Create space"}
+      <Button type="submit" disabled={pending || !resultingLevel}>
+        {pending
+          ? "Creating…"
+          : resultingLevel
+            ? `Create ${LEVEL_LABEL[resultingLevel]}`
+            : "Create space"}
       </Button>
     </form>
   );

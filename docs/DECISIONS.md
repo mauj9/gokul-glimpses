@@ -32,6 +32,13 @@ file disagree, this file wins.
     under the one above it. Enforced in `set_space_path` (migration 0002) and
     mirrored in `src/lib/tree.ts` (`LEVEL_ORDER` / `childLevelOf`).
 
+5b. **National is auto-created (June 14, 2026):** admins never make the apex by
+    hand. Creating a Parva auto-provisions its National space (name from
+    `NATIONAL_SPACE_NAME`, default "HSS USA"); opening an older Parva self-heals
+    one. At most one National per Parva (partial unique index, migration 0003).
+    The space form therefore offers no "top level" option — every new space
+    nests under an existing one. Logic in `src/lib/spaces.ts::ensureNationalSpace`.
+
 6. **Unlisted spaces:** hidden from navigation **and** their posts do *not* bubble
    up into parent feeds. Reachable only via direct URL (and joinable via invite).
 7. **Membership inheritance (default chosen):** joining a Shakha space lets you

@@ -88,6 +88,18 @@ try {
   }
   if (!rejectedTop) throw new Error("top-level non-National space was not rejected");
 
+  // a second National in the same parva must fail (one apex per parva)
+  let rejectedDupNational = false;
+  try {
+    await db.exec(`
+      insert into public.spaces (parva_id, level, name, slug, invite_code) values
+        ('10000000-0000-0000-0000-000000000001', 'national', 'Dup', 'dup', 'inv-dup');
+    `);
+  } catch {
+    rejectedDupNational = true;
+  }
+  if (!rejectedDupNational) throw new Error("duplicate National in a parva was not rejected");
+
   // shakha under sambhag must fail (skips the vibhag tier)
   let rejected = false;
   try {
@@ -115,7 +127,9 @@ try {
   );
   if (pruned.rows[0].n !== 1) throw new Error(`unlisted prune failed: got ${pruned.rows[0].n}`);
 
-  console.log("✓ smoke tests (national tier, level rules, unlisted prune)");
+  console.log(
+    "✓ smoke tests (national tier, one-per-parva, level rules, unlisted prune)",
+  );
 } catch (err) {
   console.error(`✗ smoke tests\n${err.message}`);
   process.exit(1);

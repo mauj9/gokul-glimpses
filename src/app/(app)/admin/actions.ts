@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireUser } from "@/lib/auth/session";
-import { isGlobalAdmin, envAdminEmails } from "@/lib/auth/admin";
+import { envAdminEmails } from "@/lib/auth/admin";
 import { requireGlobalAdmin, canAdminSpace } from "@/lib/auth/guards";
 import { writeAudit } from "@/lib/audit";
 import { slugify } from "@/lib/slug";
 import { childLevelOf, type SpaceLevel } from "@/lib/tree";
+import { ensureNationalSpace } from "@/lib/spaces";
 
 export type FormState = { error?: string } | null;
 
@@ -39,6 +40,9 @@ export async function createParva(
     .select("id")
     .single();
   if (error) return { error: "Could not create parva." };
+
+  // Every parva gets its apex National space automatically.
+  await ensureNationalSpace(data.id, user);
 
   await writeAudit({
     actorId: user.id,
@@ -118,30 +122,30 @@ export async function createSpace(
     return { error: "Name must be 3–60 characters." };
   }
 
-  const service = createServiceClient();
-
-  // Level is derived from the parent (National → Sambhag → Vibhag → Shakha;
-  // top level = National). The DB trigger re-validates the hierarchy.
-  let level: SpaceLevel = "national";
-  if (parentId) {
-    const { data: parent } = await service
-      .from("spaces")
-      .select("level, parva_id")
-      .eq("id", parentId)
-      .maybeSingle();
-    if (!parent || parent.parva_id !== parvaId) {
-      return { error: "Parent space not found in this parva." };
-    }
-    const childLevel = childLevelOf(parent.level as SpaceLevel);
-    if (!childLevel) return { error: "A shakha cannot have child spaces." };
-    level = childLevel;
+  // The apex National space is created automatically per parva, so every space
+  // made here nests under an existing one. Level is derived from the parent
+  // (National → Sambhag → Vibhag → Shakha); the DB trigger re-validates.
+  if (!parentId) {
+    return { error: "Pick a parent space — the National space is created for you." };
   }
 
+  const service = createServiceClient();
+  const { data: parent } = await service
+    .from("spaces")
+    .select("level, parva_id")
+    .eq("id", parentId)
+    .maybeSingle();
+  if (!parent || parent.parva_id !== parvaId) {
+    return { error: "Parent space not found in this parva." };
+  }
+  const childLevel = childLevelOf(parent.level as SpaceLevel);
+  if (!childLevel) return { error: "A shakha cannot have child spaces." };
+  const level: SpaceLevel = childLevel;
+
   // Global admins create anywhere; space admins only under their own spaces.
-  const allowed = parentId
-    ? await canAdminSpace(user, parentId)
-    : await isGlobalAdmin(user.email);
-  if (!allowed) return { error: "You are not allowed to create spaces here." };
+  if (!(await canAdminSpace(user, parentId))) {
+    return { error: "You are not allowed to create spaces here." };
+  }
 
   const { data, error } = await service
     .from("spaces")
