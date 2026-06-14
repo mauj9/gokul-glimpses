@@ -393,7 +393,7 @@ export function Composer({
                 addCustomTag();
               }
             }}
-            placeholder="Make your own, e.g. grandmashouse"
+            placeholder="Make your own, e.g. #GrandmasHouse"
             maxLength={25}
             aria-label="Custom tag"
           />
