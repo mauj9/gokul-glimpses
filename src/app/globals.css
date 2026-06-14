@@ -60,7 +60,7 @@ h3 {
   font-family: var(--font-baloo), var(--font-nunito), system-ui, sans-serif;
 }
 
-/* Bouncing peacock feather while recording an Echo */
+/* Bouncing peacock feather while recording audio */
 @keyframes feather-bounce {
   0%,
   100% {

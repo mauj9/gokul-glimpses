@@ -5,10 +5,10 @@ import { Button } from "@/components/ui";
 
 const MAX_SECONDS = 30; // PRD 4.3 hard cap
 
-export function EchoRecorder({
-  onEcho,
+export function AudioRecorder({
+  onAudio,
 }: {
-  onEcho: (blob: Blob | null) => void;
+  onAudio: (blob: Blob | null) => void;
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -46,7 +46,7 @@ export function EchoRecorder({
         stream.getTracks().forEach((t) => t.stop());
         const url = URL.createObjectURL(blob);
         setEchoUrl(url);
-        onEcho(blob);
+        onAudio(blob);
       };
 
       recorder.start();
@@ -74,7 +74,7 @@ export function EchoRecorder({
     if (echoUrl) URL.revokeObjectURL(echoUrl);
     setEchoUrl(null);
     setSeconds(0);
-    onEcho(null);
+    onAudio(null);
   }
 
   if (echoUrl) {
@@ -128,7 +128,7 @@ export function EchoRecorder({
   return (
     <div>
       <Button variant="soft" type="button" onClick={start}>
-        🎙️ Record an Echo <span className="text-xs">(up to 30s)</span>
+        🎙️ Record Audio <span className="text-xs">(up to 30s)</span>
       </Button>
       {error && (
         <p className="mt-1 text-sm font-semibold text-danger">{error}</p>

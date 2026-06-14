@@ -6,7 +6,7 @@ import imageCompression from "browser-image-compression";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { avatarEmoji } from "@/lib/avatars";
 import { normalizeTag } from "@/lib/slug";
-import { EchoRecorder } from "./echo-recorder";
+import { AudioRecorder } from "./audio-recorder";
 import { createPost } from "./actions";
 
 const MAX_VIDEO_SECONDS = 30;
@@ -73,7 +73,7 @@ export function Composer({
   const [text, setText] = useState("");
   const [images, setImages] = useState<ImageItem[]>([]);
   const [video, setVideo] = useState<VideoItem | null>(null);
-  const [echo, setEcho] = useState<Blob | null>(null);
+  const [audio, setAudio] = useState<Blob | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -170,10 +170,10 @@ export function Composer({
         const key = await presignAndUpload("video", video.file, mime, spaceId);
         media.push({ kind: "video", key, mime, durationS: Math.round(video.durationS) });
       }
-      if (echo) {
-        const mime = echo.type || "audio/webm";
-        const key = await presignAndUpload("audio", echo, mime, spaceId);
-        const url = URL.createObjectURL(echo);
+      if (audio) {
+        const mime = audio.type || "audio/webm";
+        const key = await presignAndUpload("audio", audio, mime, spaceId);
+        const url = URL.createObjectURL(audio);
         const durationS = await mediaDuration(url, "audio").catch(() => 30);
         URL.revokeObjectURL(url);
         media.push({
@@ -223,7 +223,7 @@ export function Composer({
   }
 
   const canShare =
-    !busy && (text.trim() || images.length > 0 || video || echo);
+    !busy && (text.trim() || images.length > 0 || video || audio);
 
   return (
     <div className="space-y-4">
@@ -330,10 +330,10 @@ export function Composer({
               type="button"
               onClick={() => videoInputRef.current?.click()}
             >
-              🎥 Video <span className="text-xs">(≤30s)</span>
+              🎥 Video <span className="text-xs">(up to 30s)</span>
             </Button>
           )}
-          <EchoRecorder onEcho={setEcho} />
+          <AudioRecorder onAudio={setAudio} />
         </div>
         <input
           ref={imageInputRef}

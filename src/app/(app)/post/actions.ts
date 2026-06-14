@@ -34,7 +34,7 @@ export async function createPost(
 
   const bodyText = payload.bodyText.trim().slice(0, 2000);
   if (!bodyText && payload.media.length === 0) {
-    return { error: "Add a photo, video, echo, or a few words first!" };
+    return { error: "Add a photo, video, audio, or a few words first!" };
   }
   if (payload.media.length > 5) {
     return { error: "Too many attachments." };

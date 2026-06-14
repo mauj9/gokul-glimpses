@@ -244,7 +244,7 @@ export function Player({
             )}
           </div>
           {slide.echo && !slide.video && (
-            <span className="animate-feather text-2xl" title="Echo playing">
+            <span className="animate-feather text-2xl" title="Audio playing">
               🪶
             </span>
           )}

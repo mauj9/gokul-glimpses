@@ -24,7 +24,7 @@ export default async function LoginPage({
         </h1>
         <p className="text-ink-soft mt-2 mb-6">
           Share your holiday adventures with your Gokulam family — photos,
-          videos, and little voice Echoes.
+          videos, and little voice notes.
         </p>
         {params.error === "auth" && (
           <p className="mb-4 rounded-chubby bg-mango-soft px-4 py-2 text-sm font-semibold text-danger">
