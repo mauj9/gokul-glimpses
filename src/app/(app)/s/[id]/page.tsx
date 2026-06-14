@@ -4,7 +4,7 @@ import { getGardenStatus } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { canAdminSpace } from "@/lib/auth/guards";
 import { createServiceClient } from "@/lib/supabase/service";
-import { LEVEL_EMOJI, LEVEL_LABEL } from "@/lib/tree";
+import { LEVEL_EMOJI, LEVEL_LABEL, type SpaceLevel } from "@/lib/tree";
 import { fetchFeed } from "@/lib/feed";
 import { Button, ButtonLink, Card, Chip, PageTitle } from "@/components/ui";
 import { PostCard } from "@/components/post-card";
@@ -258,7 +258,11 @@ export default async function SpacePage({
               <SpaceForm
                 parvaId={space.parva_id}
                 parentOptions={[
-                  { id: space.id, name: space.name, level: space.level },
+                  {
+                    id: space.id,
+                    name: space.name,
+                    level: space.level as SpaceLevel,
+                  },
                 ]}
               />
             </Card>

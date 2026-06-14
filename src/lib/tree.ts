@@ -1,12 +1,28 @@
+export type SpaceLevel = "national" | "sambhag" | "vibhag" | "shakha";
+
 export type SpaceRow = {
   id: string;
   parent_space_id: string | null;
-  level: "sambhag" | "vibhag" | "shakha";
+  level: SpaceLevel;
   name: string;
   visibility: "listed" | "unlisted";
   moderation?: "instant" | "approval";
   invite_code?: string;
 };
+
+/** Tiers from broadest to narrowest (HSS org tree). */
+export const LEVEL_ORDER: SpaceLevel[] = [
+  "national",
+  "sambhag",
+  "vibhag",
+  "shakha",
+];
+
+/** Level a new child under `parentLevel` becomes; null if the parent is a leaf. */
+export function childLevelOf(parentLevel: SpaceLevel): SpaceLevel | null {
+  const i = LEVEL_ORDER.indexOf(parentLevel);
+  return i >= 0 && i < LEVEL_ORDER.length - 1 ? LEVEL_ORDER[i + 1] : null;
+}
 
 export type SpaceNode<T extends SpaceRow = SpaceRow> = T & {
   children: SpaceNode<T>[];
@@ -35,13 +51,15 @@ export function buildSpaceTree<T extends SpaceRow>(rows: T[]): SpaceNode<T>[] {
   return roots;
 }
 
-export const LEVEL_LABEL: Record<SpaceRow["level"], string> = {
+export const LEVEL_LABEL: Record<SpaceLevel, string> = {
+  national: "National",
   sambhag: "Sambhag",
   vibhag: "Vibhag",
   shakha: "Shakha",
 };
 
-export const LEVEL_EMOJI: Record<SpaceRow["level"], string> = {
+export const LEVEL_EMOJI: Record<SpaceLevel, string> = {
+  national: "🏛️",
   sambhag: "🌏",
   vibhag: "🏞️",
   shakha: "🏡",

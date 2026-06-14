@@ -12,7 +12,9 @@ runtime), not `middleware.ts`; Turbopack is the default bundler.
 
 Private, mobile-first PWA for Balagokulam (HSS) families: kids share holiday
 activities (photos, ≤30s video, ≤30s audio "Echoes", text) into Spaces arranged
-in the HSS org tree (Sambhag → Vibhag → Shakha) under seasonal "Parvas".
+in the HSS org tree (National → Sambhag → Vibhag → Shakha) under seasonal
+"Parvas". Top-level spaces must be National; each tier nests only under the
+tier directly above it (enforced by the `set_space_path` trigger).
 
 ## Source of truth
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button, Input, Label } from "@/components/ui";
+import { LEVEL_LABEL, childLevelOf, type SpaceLevel } from "@/lib/tree";
 import {
   createParva,
   createSpace,
@@ -50,13 +51,23 @@ export function SpaceForm({
   parentOptions,
 }: {
   parvaId: string;
-  /** [] ⇒ only top-level (sambhag) creation is offered. */
-  parentOptions: { id: string; name: string; level: string }[];
+  /** [] ⇒ only top-level (National) creation is offered. */
+  parentOptions: { id: string; name: string; level: SpaceLevel }[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     createSpace,
     null,
   );
+  const [parentId, setParentId] = useState("");
+
+  // Mirror the server's level derivation so the admin sees what they'll create.
+  const resultingLevel: SpaceLevel | null = parentId
+    ? (() => {
+        const parent = parentOptions.find((p) => p.id === parentId);
+        return parent ? childLevelOf(parent.level) : null;
+      })()
+    : "national";
+
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="parva_id" value={parvaId} />
@@ -75,15 +86,25 @@ export function SpaceForm({
           id="parent_space_id"
           name="parent_space_id"
           className="w-full rounded-chubby border-2 border-mango bg-surface px-4 min-h-11 text-ink focus:border-marigold focus:outline-none"
-          defaultValue=""
+          value={parentId}
+          onChange={(e) => setParentId(e.target.value)}
         >
-          <option value="">— Top level (Sambhag) —</option>
+          <option value="">— Top level (National) —</option>
           {parentOptions.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} ({p.level})
+              {p.name} ({LEVEL_LABEL[p.level]})
             </option>
           ))}
         </select>
+        {resultingLevel && (
+          <p className="mt-1 text-sm text-ink-soft">
+            This will be a{" "}
+            <strong className="text-peacock-deep">
+              {LEVEL_LABEL[resultingLevel]}
+            </strong>
+            .
+          </p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

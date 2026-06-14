@@ -54,8 +54,12 @@ try {
     insert into public.parvas (id, name, slug) values
       ('10000000-0000-0000-0000-000000000001', 'Summer Parva 2026', 'summer-2026');
     insert into public.spaces (id, parva_id, level, name, slug, invite_code) values
+      ('20000000-0000-0000-0000-000000000000',
+       '10000000-0000-0000-0000-000000000001', 'national', 'HSS USA', 'hss-usa', 'inv-national');
+    insert into public.spaces (id, parva_id, parent_space_id, level, name, slug, invite_code) values
       ('20000000-0000-0000-0000-000000000001',
-       '10000000-0000-0000-0000-000000000001', 'sambhag', 'West Sambhag', 'west', 'inv-sambhag');
+       '10000000-0000-0000-0000-000000000001',
+       '20000000-0000-0000-0000-000000000000', 'sambhag', 'West Sambhag', 'west', 'inv-sambhag');
     insert into public.spaces (id, parva_id, parent_space_id, level, name, slug, invite_code) values
       ('20000000-0000-0000-0000-000000000002',
        '10000000-0000-0000-0000-000000000001',
@@ -70,9 +74,21 @@ try {
     `select array_length(path, 1) as depth from public.spaces
      where id = '20000000-0000-0000-0000-000000000003'`,
   );
-  if (rows[0].depth !== 3) throw new Error(`expected shakha path depth 3, got ${rows[0].depth}`);
+  if (rows[0].depth !== 4) throw new Error(`expected shakha path depth 4, got ${rows[0].depth}`);
 
-  // shakha under sambhag must fail
+  // a non-National space at the top must fail
+  let rejectedTop = false;
+  try {
+    await db.exec(`
+      insert into public.spaces (parva_id, level, name, slug, invite_code) values
+        ('10000000-0000-0000-0000-000000000001', 'sambhag', 'Rogue', 'rogue', 'inv-rogue');
+    `);
+  } catch {
+    rejectedTop = true;
+  }
+  if (!rejectedTop) throw new Error("top-level non-National space was not rejected");
+
+  // shakha under sambhag must fail (skips the vibhag tier)
   let rejected = false;
   try {
     await db.exec(`
@@ -86,20 +102,20 @@ try {
   if (!rejected) throw new Error("invalid hierarchy (shakha under sambhag) was not rejected");
 
   const subtree = await db.query(
-    `select count(*)::int as n from public.visible_subtree('20000000-0000-0000-0000-000000000001')`,
+    `select count(*)::int as n from public.visible_subtree('20000000-0000-0000-0000-000000000000')`,
   );
-  if (subtree.rows[0].n !== 3) throw new Error(`expected subtree of 3, got ${subtree.rows[0].n}`);
+  if (subtree.rows[0].n !== 4) throw new Error(`expected subtree of 4, got ${subtree.rows[0].n}`);
 
-  // unlisted vibhag stops bubble-up
+  // unlisted sambhag stops bubble-up for itself and everything beneath it
   await db.exec(
-    `update public.spaces set visibility = 'unlisted' where id = '20000000-0000-0000-0000-000000000002'`,
+    `update public.spaces set visibility = 'unlisted' where id = '20000000-0000-0000-0000-000000000001'`,
   );
   const pruned = await db.query(
-    `select count(*)::int as n from public.visible_subtree('20000000-0000-0000-0000-000000000001')`,
+    `select count(*)::int as n from public.visible_subtree('20000000-0000-0000-0000-000000000000')`,
   );
   if (pruned.rows[0].n !== 1) throw new Error(`unlisted prune failed: got ${pruned.rows[0].n}`);
 
-  console.log("✓ smoke tests (tree path, level rules, unlisted prune)");
+  console.log("✓ smoke tests (national tier, level rules, unlisted prune)");
 } catch (err) {
   console.error(`✗ smoke tests\n${err.message}`);
   process.exit(1);

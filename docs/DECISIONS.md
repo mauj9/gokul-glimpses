@@ -24,6 +24,14 @@ file disagree, this file wins.
 
 ## Content & spaces
 
+5a. **Four-tier hierarchy (June 14, 2026):** the org tree is **National → Sambhag
+    → Vibhag → Shakha**, adding a *National* apex above the PRD's three tiers.
+    (The PRD core-concepts section lists 3 tiers but its Replay example already
+    references a "National Space pulling from all Sambhags", so National was
+    implied.) Top-level spaces must be National; every other tier nests directly
+    under the one above it. Enforced in `set_space_path` (migration 0002) and
+    mirrored in `src/lib/tree.ts` (`LEVEL_ORDER` / `childLevelOf`).
+
 6. **Unlisted spaces:** hidden from navigation **and** their posts do *not* bubble
    up into parent feeds. Reachable only via direct URL (and joinable via invite).
 7. **Membership inheritance (default chosen):** joining a Shakha space lets you

@@ -8,6 +8,7 @@ import { isGlobalAdmin, envAdminEmails } from "@/lib/auth/admin";
 import { requireGlobalAdmin, canAdminSpace } from "@/lib/auth/guards";
 import { writeAudit } from "@/lib/audit";
 import { slugify } from "@/lib/slug";
+import { childLevelOf, type SpaceLevel } from "@/lib/tree";
 
 export type FormState = { error?: string } | null;
 
@@ -119,8 +120,9 @@ export async function createSpace(
 
   const service = createServiceClient();
 
-  // Level is derived from the parent (clean 3-tier tree, DB re-validates).
-  let level: "sambhag" | "vibhag" | "shakha" = "sambhag";
+  // Level is derived from the parent (National → Sambhag → Vibhag → Shakha;
+  // top level = National). The DB trigger re-validates the hierarchy.
+  let level: SpaceLevel = "national";
   if (parentId) {
     const { data: parent } = await service
       .from("spaces")
@@ -130,9 +132,9 @@ export async function createSpace(
     if (!parent || parent.parva_id !== parvaId) {
       return { error: "Parent space not found in this parva." };
     }
-    if (parent.level === "sambhag") level = "vibhag";
-    else if (parent.level === "vibhag") level = "shakha";
-    else return { error: "A shakha cannot have child spaces." };
+    const childLevel = childLevelOf(parent.level as SpaceLevel);
+    if (!childLevel) return { error: "A shakha cannot have child spaces." };
+    level = childLevel;
   }
 
   // Global admins create anywhere; space admins only under their own spaces.

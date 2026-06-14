@@ -68,7 +68,7 @@ export default async function ManageParvaPage({
       <Card>
         {rows.length === 0 ? (
           <p className="text-center text-ink-soft">
-            No spaces yet — create the first Sambhag below.
+            No spaces yet — create the top-level National space below.
           </p>
         ) : (
           <TreeView nodes={tree} />
