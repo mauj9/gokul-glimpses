@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import type { FeedPost } from "@/lib/feed";
+import type { FeedPost } from "@/lib/feed-types";
 import { deletePost } from "@/app/(app)/post/actions";
 
 export function PostMenu({ post }: { post: FeedPost }) {

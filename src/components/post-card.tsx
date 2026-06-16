@@ -1,14 +1,17 @@
+"use client";
+
 import { Card, Chip } from "@/components/ui";
 import { avatarEmoji } from "@/lib/avatars";
-import { timeAgo, type FeedPost } from "@/lib/feed";
+import { timeAgo, type FeedPost } from "@/lib/feed-types";
 import { PostMenu } from "./post-menu";
 import { ReactionBar } from "./reaction-bar";
 import { FlagButton } from "./flag-button";
 
 /**
- * One glimpse in the feed. Server component — media URLs are already signed.
- * `viewerCanDelete` = author or space admin (computed server-side).
- * `readOnly` = parva closed (reactions disabled).
+ * One glimpse in the feed. Media URLs arrive already signed in `post`, so this
+ * is a client component (it's rendered for both the initial page and posts
+ * appended via "Load more").
+ * `viewerCanDelete` = author or space admin. `readOnly` = parva closed.
  */
 export function PostCard({
   post,

@@ -50,7 +50,7 @@ export default async function ReplayConfigPage({
   const tag = sp.tag || null;
 
   // Scope-aware pull: this space + listed descendants (PRD 4.6).
-  const posts = await fetchFeed(id, {
+  const { posts } = await fetchFeed(id, {
     userId: user.id,
     tagSlug: tag ?? undefined,
     limit: order === "chrono" ? limit : 200,

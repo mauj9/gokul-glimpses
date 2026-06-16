@@ -7,7 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { LEVEL_EMOJI, LEVEL_LABEL, type SpaceLevel } from "@/lib/tree";
 import { fetchFeed } from "@/lib/feed";
 import { Button, ButtonLink, Card, Chip, PageTitle } from "@/components/ui";
-import { PostCard } from "@/components/post-card";
+import { FeedList } from "./feed-list";
 import { setHomeSpace } from "../actions";
 import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-panel";
 import { ModerationQueue } from "./moderation-queue";
@@ -32,29 +32,26 @@ async function Feed({
   isClosed: boolean;
   tagSlug: string | null;
 }) {
-  const posts = await fetchFeed(spaceId, {
-    userId,
-    includeOwnPending: true,
-    tagSlug: tagSlug ?? undefined,
-  });
+  const supabase = await createClient();
+  const [{ posts, nextCursor }, { data: chipRows }] = await Promise.all([
+    fetchFeed(spaceId, {
+      userId,
+      includeOwnPending: true,
+      tagSlug: tagSlug ?? undefined,
+    }),
+    // Filter chips reflect every tag used in the space (not just this page).
+    supabase.rpc("space_tags", { root: spaceId }),
+  ]);
 
-  // Tag bar shows tags actually used in this feed (unfiltered slice keeps it
-  // stable while a filter is active).
-  const allPosts = tagSlug
-    ? await fetchFeed(spaceId, { userId, includeOwnPending: true })
-    : posts;
-  const tagMap = new Map<string, { slug: string; label: string; emoji: string }>();
-  for (const p of allPosts) {
-    for (const t of p.tags) tagMap.set(t.slug, t);
-  }
+  const chips = (chipRows ?? []) as {
+    slug: string;
+    label: string;
+    emoji: string;
+  }[];
 
   return (
     <>
-      <TagFilterBar
-        spaceId={spaceId}
-        tags={[...tagMap.values()]}
-        active={tagSlug}
-      />
+      <TagFilterBar spaceId={spaceId} tags={chips} active={tagSlug} />
       {posts.length === 0 ? (
         <Card className="text-center text-ink-soft">
           <p className="mb-1 text-3xl">🌼</p>
@@ -63,17 +60,15 @@ async function Feed({
             : "No glimpses here yet — be the first to share!"}
         </Card>
       ) : (
-        <div className="space-y-3">
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              viewerId={userId}
-              readOnly={isClosed}
-              viewerCanDelete={isSpaceAdmin || post.author_user_id === userId}
-            />
-          ))}
-        </div>
+        <FeedList
+          spaceId={spaceId}
+          tagSlug={tagSlug}
+          viewerId={userId}
+          isSpaceAdmin={isSpaceAdmin}
+          isClosed={isClosed}
+          initialPosts={posts}
+          initialCursor={nextCursor}
+        />
       )}
     </>
   );

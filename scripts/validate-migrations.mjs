@@ -127,8 +127,33 @@ try {
   );
   if (pruned.rows[0].n !== 1) throw new Error(`unlisted prune failed: got ${pruned.rows[0].n}`);
 
+  // space_tags(root) returns distinct tags used in the subtree.
+  await db.exec(`
+    update public.spaces set visibility = 'listed'
+      where id = '20000000-0000-0000-0000-000000000001';
+    insert into auth.users (id, email) values
+      ('00000000-0000-0000-0000-000000000009', 'parent@example.com');
+    insert into public.children (id, parent_id, first_name, age)
+      values ('30000000-0000-0000-0000-000000000001',
+              '00000000-0000-0000-0000-000000000009', 'Anu', 7);
+    insert into public.posts (id, space_id, child_id, author_user_id, status)
+      values ('40000000-0000-0000-0000-000000000001',
+              '20000000-0000-0000-0000-000000000003',
+              '30000000-0000-0000-0000-000000000001',
+              '00000000-0000-0000-0000-000000000009', 'live');
+    insert into public.post_tags (post_id, tag_id)
+      select '40000000-0000-0000-0000-000000000001', id
+        from public.tags where slug = 'mandirdarshan';
+  `);
+  const spaceTags = await db.query(
+    `select count(*)::int as n from public.space_tags('20000000-0000-0000-0000-000000000000')`,
+  );
+  if (spaceTags.rows[0].n !== 1) {
+    throw new Error(`space_tags expected 1 tag, got ${spaceTags.rows[0].n}`);
+  }
+
   console.log(
-    "✓ smoke tests (national tier, one-per-parva, level rules, unlisted prune)",
+    "✓ smoke tests (national tier, one-per-parva, level rules, unlisted prune, space_tags)",
   );
 } catch (err) {
   console.error(`✗ smoke tests\n${err.message}`);

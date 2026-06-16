@@ -1,30 +1,16 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { presignDownload } from "@/lib/r2";
+import {
+  FEED_PAGE_SIZE,
+  type FeedPage,
+  type FeedPost,
+} from "@/lib/feed-types";
 
-export type FeedMedia = {
-  id: string;
-  kind: "image" | "video" | "audio";
-  url: string;
-  mime: string;
-  duration_s: number | null;
-  width: number | null;
-  height: number | null;
-};
-
-export type FeedPost = {
-  id: string;
-  body_text: string;
-  status: "live" | "pending" | "rejected";
-  created_at: string;
-  author_user_id: string;
-  space: { id: string; name: string; level: string };
-  child: { id: string; first_name: string; age: number; avatar: string; city: string; state: string };
-  media: FeedMedia[];
-  tags: { id: string; slug: string; label: string; emoji: string }[];
-  reactions: Record<string, number>;
-  myReaction: string | null;
-};
+// Re-export shared bits so existing server-side imports from "@/lib/feed" keep
+// working. Client components must import from "@/lib/feed-types" instead.
+export { FEED_PAGE_SIZE, timeAgo } from "@/lib/feed-types";
+export type { FeedMedia, FeedPost, FeedPage } from "@/lib/feed-types";
 
 type RawPost = {
   id: string;
@@ -51,17 +37,72 @@ export type FeedOptions = {
   includeOwnPending?: boolean;
   userId: string;
   order?: "asc" | "desc";
+  /** Keyset cursor: only return posts created before (desc) / after (asc) this
+   *  `created_at`. Used by "Load more". */
+  before?: string;
 };
 
+const POST_SELECT = `id, body_text, status, created_at, author_user_id, deleted_at,
+  spaces(id, name, level),
+  children(id, first_name, age, avatar, city, state),
+  post_media(id, kind, r2_key, mime, duration_s, width, height, position),
+  post_tags(tags(id, slug, label, emoji)),
+  reactions(user_id, emoji)`;
+
+async function buildPost(p: RawPost, userId: string): Promise<FeedPost> {
+  const media = await Promise.all(
+    [...p.post_media]
+      .sort((a, b) => a.position - b.position)
+      .map(async (m) => ({
+        id: m.id,
+        kind: m.kind,
+        mime: m.mime,
+        duration_s: m.duration_s,
+        width: m.width,
+        height: m.height,
+        url: await presignDownload(m.r2_key),
+      })),
+  );
+
+  const counts: Record<string, number> = {};
+  let myReaction: string | null = null;
+  for (const r of p.reactions) {
+    counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
+    if (r.user_id === userId) myReaction = r.emoji;
+  }
+
+  return {
+    id: p.id,
+    body_text: p.body_text,
+    status: p.status,
+    created_at: p.created_at,
+    author_user_id: p.author_user_id,
+    space: one(p.spaces)!,
+    child: one(p.children)!,
+    media,
+    tags: p.post_tags
+      .map((t) => one(t.tags))
+      .filter((t): t is NonNullable<typeof t> => Boolean(t)),
+    reactions: counts,
+    myReaction,
+  };
+}
+
 /**
- * Posts for a space and its listed descendants (bubble-up, DECISIONS #6),
- * with media converted to short-TTL signed URLs.
+ * One page of posts for a space and its listed descendants (bubble-up,
+ * DECISIONS #6), newest-first by default, with media as short-TTL signed URLs.
+ *
+ * Keyset pagination: pass `before` (the previous page's `nextCursor`) to fetch
+ * older glimpses. Tag filtering runs in SQL so it searches the whole space, not
+ * just the current page.
  */
 export async function fetchFeed(
   spaceId: string,
   opts: FeedOptions,
-): Promise<FeedPost[]> {
+): Promise<FeedPage> {
   const supabase = await createClient();
+  const limit = opts.limit ?? FEED_PAGE_SIZE;
+  const asc = opts.order === "asc";
 
   const { data: subtree } = await supabase.rpc("visible_subtree", {
     root: spaceId,
@@ -70,91 +111,60 @@ export async function fetchFeed(
     (r: { visible_subtree: string } | string) =>
       typeof r === "string" ? r : r.visible_subtree,
   );
-  if (spaceIds.length === 0) return [];
+  if (spaceIds.length === 0) return { posts: [], nextCursor: null };
 
-  let query = supabase
+  // Step 1 — the page of post ids, honoring tag filter + status + cursor.
+  // An inner join on the tag keeps filtering in the database.
+  let pageQ = supabase
     .from("posts")
     .select(
-      `id, body_text, status, created_at, author_user_id, deleted_at,
-       spaces(id, name, level),
-       children(id, first_name, age, avatar, city, state),
-       post_media(id, kind, r2_key, mime, duration_s, width, height, position),
-       post_tags(tags(id, slug, label, emoji)),
-       reactions(user_id, emoji)`,
+      opts.tagSlug
+        ? "id, created_at, post_tags!inner(tags!inner(slug))"
+        : "id, created_at",
     )
     .in("space_id", spaceIds)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: opts.order === "asc" })
-    .limit(opts.limit ?? 50);
-
+    .is("deleted_at", null);
+  if (opts.tagSlug) pageQ = pageQ.eq("post_tags.tags.slug", opts.tagSlug);
   if (opts.includeOwnPending) {
-    query = query.or(
+    pageQ = pageQ.or(
       `status.eq.live,and(status.eq.pending,author_user_id.eq.${opts.userId})`,
     );
   } else {
-    query = query.eq("status", "live");
+    pageQ = pageQ.eq("status", "live");
   }
+  if (opts.before) {
+    pageQ = asc
+      ? pageQ.gt("created_at", opts.before)
+      : pageQ.lt("created_at", opts.before);
+  }
+  pageQ = pageQ.order("created_at", { ascending: asc }).limit(limit);
 
-  const { data } = await query;
+  const { data: pageRows } = await pageQ;
+  // The conditional select string defeats supabase-js's row-type inference, so
+  // narrow through unknown.
+  const rows = (pageRows ?? []) as unknown as {
+    id: string;
+    created_at: string;
+  }[];
+  const ids = [...new Set(rows.map((r) => r.id))];
+  if (ids.length === 0) return { posts: [], nextCursor: null };
+
+  // Step 2 — hydrate full post data (all tags, media, reactions) for the page.
+  const { data } = await supabase
+    .from("posts")
+    .select(POST_SELECT)
+    .in("id", ids)
+    .order("created_at", { ascending: asc });
   const raw = (data ?? []) as unknown as RawPost[];
 
   const posts = await Promise.all(
     raw
       .filter((p) => one(p.children) && one(p.spaces))
-      .map(async (p): Promise<FeedPost> => {
-        const media = await Promise.all(
-          [...p.post_media]
-            .sort((a, b) => a.position - b.position)
-            .map(async (m) => ({
-              id: m.id,
-              kind: m.kind,
-              mime: m.mime,
-              duration_s: m.duration_s,
-              width: m.width,
-              height: m.height,
-              url: await presignDownload(m.r2_key),
-            })),
-        );
-
-        const counts: Record<string, number> = {};
-        let myReaction: string | null = null;
-        for (const r of p.reactions) {
-          counts[r.emoji] = (counts[r.emoji] ?? 0) + 1;
-          if (r.user_id === opts.userId) myReaction = r.emoji;
-        }
-
-        return {
-          id: p.id,
-          body_text: p.body_text,
-          status: p.status,
-          created_at: p.created_at,
-          author_user_id: p.author_user_id,
-          space: one(p.spaces)!,
-          child: one(p.children)!,
-          media,
-          tags: p.post_tags
-            .map((t) => one(t.tags))
-            .filter((t): t is NonNullable<typeof t> => Boolean(t)),
-          reactions: counts,
-          myReaction,
-        };
-      }),
+      .map((p) => buildPost(p, opts.userId)),
   );
 
-  // Tag filter (applied after fetch keeps the query simple; feeds are small).
-  return opts.tagSlug
-    ? posts.filter((p) => p.tags.some((t) => t.slug === opts.tagSlug))
-    : posts;
-}
-
-export function timeAgo(iso: string): string {
-  const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString();
+  // A full page means there may be more; cursor is the page's last row.
+  const hasMore = rows.length === limit;
+  const nextCursor = hasMore ? rows[rows.length - 1].created_at : null;
+  return { posts, nextCursor };
 }

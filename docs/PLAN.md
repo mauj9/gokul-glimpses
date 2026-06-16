@@ -71,7 +71,9 @@ credentials for the end-to-end staging smoke test (see DEPLOYMENT.md §4).
   R2 objects. Add a cleanup script or R2 lifecycle rule before heavy use.
 - **No post text editing** — authors can delete + repost (PRD "CRUD" is
   otherwise covered). Easy to add later.
-- **Feeds cap at the latest 50 posts** — no pagination yet.
+- **Feeds paginate** via keyset "Load more" (20/page, newest-first); tag
+  filtering runs in SQL and chips come from `space_tags(root)` (migration 0005),
+  so filtering searches the whole space, not just the page.
 - **No offline service worker** — installable PWA via manifest; offline
   caching deferred.
 - **Placeholder app icons** (generated flat artwork) — replace files in
