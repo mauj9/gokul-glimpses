@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setReaction } from "@/app/(app)/post/engagement-actions";
+import { useToast } from "@/components/toast";
 
 const EMOJIS = [
   ["thumbs_up", "👍"],
@@ -25,19 +26,23 @@ export function ReactionBar({
 }) {
   const [local, setLocal] = useState({ counts, mine });
   const [, startTransition] = useTransition();
+  const toast = useToast();
 
   function tap(key: Key) {
     if (readOnly) return;
-    setLocal((prev) => {
-      const next = { ...prev.counts };
-      const newMine = prev.mine === key ? null : key;
-      if (prev.mine) next[prev.mine] = Math.max(0, (next[prev.mine] ?? 1) - 1);
-      if (newMine) next[newMine] = (next[newMine] ?? 0) + 1;
-      return { counts: next, mine: newMine };
-    });
+    const before = local;
+    const newMine = before.mine === key ? null : key;
+    const next = { ...before.counts };
+    if (before.mine) next[before.mine] = Math.max(0, (next[before.mine] ?? 1) - 1);
+    if (newMine) next[newMine] = (next[newMine] ?? 0) + 1;
+    setLocal({ counts: next, mine: newMine }); // optimistic
+
     startTransition(async () => {
-      // Optimistic; server result wins on next page load.
-      await setReaction(postId, local.mine === key ? null : key);
+      const { ok } = await setReaction(postId, newMine);
+      if (!ok) {
+        setLocal(before); // revert
+        toast("Couldn't save your reaction — please try again.", "error");
+      }
     });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
 import { Button, Card, Input, Label } from "@/components/ui";
@@ -19,11 +19,35 @@ type Tag = { slug: string; label: string; emoji: string };
 type ImageItem = { file: File; previewUrl: string; width: number; height: number };
 type VideoItem = { file: File; previewUrl: string; durationS: number };
 
+/** PUT to R2 via XHR so we can report upload progress (fetch can't). */
+function putWithProgress(
+  url: string,
+  file: Blob,
+  mime: string,
+  onProgress: (pct: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", mime);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error("Upload failed — please try again."));
+    xhr.onerror = () => reject(new Error("Upload failed — please try again."));
+    xhr.send(file);
+  });
+}
+
 async function presignAndUpload(
   kind: "image" | "video" | "audio",
   file: Blob,
   mime: string,
   spaceId: string,
+  onProgress: (pct: number) => void,
 ): Promise<string> {
   const res = await fetch("/api/media/presign", {
     method: "POST",
@@ -35,12 +59,7 @@ async function presignAndUpload(
     throw new Error(data.error ?? "Upload not allowed");
   }
   const { key, url } = await res.json();
-  const put = await fetch(url, {
-    method: "PUT",
-    headers: { "Content-Type": mime },
-    body: file,
-  });
-  if (!put.ok) throw new Error("Upload failed — please try again.");
+  await putWithProgress(url, file, mime, onProgress);
   return key;
 }
 
@@ -77,10 +96,27 @@ export function Composer({
   const [tags, setTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingNotice, setPendingNotice] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Warn before losing an unsaved glimpse (tab close / refresh). Note: this
+  // does not cover in-app navigation via the bottom nav.
+  const dirty =
+    !pendingNotice &&
+    !busy &&
+    !!(text.trim() || images.length > 0 || video || audio);
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
 
   function toggleTag(slug: string) {
     setTags((prev) =>
@@ -157,22 +193,32 @@ export function Composer({
   async function share() {
     if (!childId || !spaceId) return;
     setError(null);
-    setBusy("Sharing your glimpse…");
+    const totalSteps = images.length + (video ? 1 : 0) + (audio ? 1 : 0);
+    let step = 0;
     try {
       const media: Parameters<typeof createPost>[0]["media"] = [];
       for (const img of images) {
+        step += 1;
+        setBusy(`Uploading photo ${step} of ${totalSteps}…`);
+        setUploadPct(0);
         const mime = img.file.type || "image/jpeg";
-        const key = await presignAndUpload("image", img.file, mime, spaceId);
+        const key = await presignAndUpload("image", img.file, mime, spaceId, setUploadPct);
         media.push({ kind: "image", key, mime, width: img.width, height: img.height });
       }
       if (video) {
+        step += 1;
+        setBusy(`Uploading video ${step} of ${totalSteps}…`);
+        setUploadPct(0);
         const mime = video.file.type || "video/mp4";
-        const key = await presignAndUpload("video", video.file, mime, spaceId);
+        const key = await presignAndUpload("video", video.file, mime, spaceId, setUploadPct);
         media.push({ kind: "video", key, mime, durationS: Math.round(video.durationS) });
       }
       if (audio) {
+        step += 1;
+        setBusy(`Uploading audio ${step} of ${totalSteps}…`);
+        setUploadPct(0);
         const mime = audio.type || "audio/webm";
-        const key = await presignAndUpload("audio", audio, mime, spaceId);
+        const key = await presignAndUpload("audio", audio, mime, spaceId, setUploadPct);
         const url = URL.createObjectURL(audio);
         const durationS = await mediaDuration(url, "audio").catch(() => 30);
         URL.revokeObjectURL(url);
@@ -184,6 +230,8 @@ export function Composer({
         });
       }
 
+      setBusy("Posting your glimpse…");
+      setUploadPct(null); // indeterminate while the server saves
       const result = await createPost({
         spaceId,
         childId,
@@ -202,6 +250,7 @@ export function Composer({
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
       setBusy(null);
+      setUploadPct(null);
     }
   }
 
@@ -409,12 +458,28 @@ export function Composer({
         </p>
       )}
 
+      {busy && (
+        <div className="space-y-1" aria-live="polite">
+          <p className="text-center text-sm font-semibold text-peacock-deep">
+            {busy}
+          </p>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-mango-soft">
+            <div
+              className={`h-full rounded-full bg-marigold ${
+                uploadPct === null ? "w-full animate-pulse" : "transition-all"
+              }`}
+              style={uploadPct === null ? undefined : { width: `${uploadPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <Button
         className="w-full !min-h-14 text-lg"
         disabled={!canShare}
         onClick={share}
       >
-        {busy ?? "✨ Share my glimpse"}
+        {busy ? "Sharing…" : "✨ Share my glimpse"}
       </Button>
     </div>
   );

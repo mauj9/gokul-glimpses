@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { flagPost } from "@/app/(app)/post/engagement-actions";
+import { useToast } from "@/components/toast";
 
 export function FlagButton({ postId }: { postId: string }) {
   const [done, setDone] = useState(false);
+  const toast = useToast();
 
   async function flag() {
     const reason = prompt(
@@ -13,6 +15,7 @@ export function FlagButton({ postId }: { postId: string }) {
     if (reason === null) return; // cancelled
     const { ok } = await flagPost(postId, reason);
     if (ok) setDone(true);
+    else toast("Couldn't send your report — please try again.", "error");
   }
 
   if (done) {

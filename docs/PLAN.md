@@ -74,10 +74,10 @@ credentials for the end-to-end staging smoke test (see DEPLOYMENT.md §4).
 - **Feeds paginate** via keyset "Load more" (20/page, newest-first); tag
   filtering runs in SQL and chips come from `space_tags(root)` (migration 0005),
   so filtering searches the whole space, not just the page.
-- **No offline service worker** — installable PWA via manifest; offline
-  caching deferred.
-- **Placeholder app icons** (generated flat artwork) — replace files in
-  `public/icons/` with real branding when ready.
+- **TODO (deferred — agreed June 14, 2026): real PWA icons + offline fallback.**
+  App icons in `public/icons/` are placeholder flat artwork — replace with real
+  branding. And add an offline fallback (service worker + `/offline` route);
+  today the app is installable via manifest but has no offline shell.
 - **Unlisted spaces are hidden, not secret:** any garden member with API
   knowledge could enumerate space names via PostgREST (their *posts* stay out
   of parent feeds regardless). Matches PRD semantics ("hidden from directory,
