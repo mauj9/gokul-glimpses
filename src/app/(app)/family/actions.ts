@@ -19,8 +19,8 @@ function parseChild(formData: FormData) {
   if (firstName.length < 1 || firstName.length > 40) {
     return { error: "Please give a name (up to 40 letters)." } as const;
   }
-  if (!Number.isInteger(age) || age < 1 || age > 18) {
-    return { error: "Age must be between 1 and 18." } as const;
+  if (!Number.isInteger(age) || age < 1 || age > 120) {
+    return { error: "Age must be between 1 and 120." } as const;
   }
   return { value: { first_name: firstName, age, city, state, avatar } } as const;
 }
