@@ -38,7 +38,7 @@ export default async function FamilyPage() {
         <Card className="text-center">
           <p className="mb-1 text-4xl">🌱</p>
           <p className="font-semibold text-ink">
-            Add your child to start sharing glimpses!
+            Add a family member to start sharing glimpses!
           </p>
           <p className="mb-4 text-sm text-ink-soft">
             Just a name or nickname and age — no photos needed for their
@@ -57,7 +57,7 @@ export default async function FamilyPage() {
           ))}
           <Card>
             <p className="mb-3 font-display font-bold text-peacock-deep">
-              Add another child
+              Add another family member
             </p>
             <ChildForm />
           </Card>

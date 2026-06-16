@@ -58,8 +58,7 @@ export default async function PostPage() {
         <Card className="text-center">
           <p className="mb-2 text-4xl">🌱</p>
           <p className="mb-4 font-semibold">
-            First, add your child to your family — glimpses are shared in their
-            name.
+            First, add a family member — glimpses are shared in their name.
           </p>
           <ButtonLink href="/family">👨‍👩‍👧‍👦 Set up my family</ButtonLink>
         </Card>
