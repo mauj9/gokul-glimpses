@@ -86,6 +86,7 @@ npm run dev                  # http://localhost:3000
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase dev anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase dev service_role key |
 | `ADMIN_EMAILS` | comma-separated Gmail IDs of hardcoded global admins |
+| `NATIONAL_SPACE_NAME` | optional; name of the auto-created apex space (default "HSS USA") |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | from step 3 |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |
 
