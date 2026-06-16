@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { Button, Input, Label } from "@/components/ui";
 import {
   updateSpaceSettings,
@@ -24,14 +24,42 @@ export function InviteLinkBox({
   appUrl,
   canRegenerate,
   spaceId,
+  spaceName,
 }: {
   code: string;
   appUrl: string;
   canRegenerate: boolean;
   spaceId: string;
+  spaceName: string;
 }) {
   const [copied, setCopied] = useState(false);
   const link = `${appUrl}/join/${code}`;
+
+  // navigator.share is mobile-only; read it client-side (false on the server)
+  // without risking a hydration mismatch.
+  const canShare = useSyncExternalStore(
+    () => () => {},
+    () => typeof navigator !== "undefined" && !!navigator.share,
+    () => false,
+  );
+
+  async function copy() {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function share() {
+    try {
+      await navigator.share({
+        title: `Join ${spaceName} on Gokul Glimpses`,
+        text: `Come share your holiday glimpses in ${spaceName}!`,
+        url: link,
+      });
+    } catch {
+      // User cancelled or share unavailable — no-op.
+    }
+  }
 
   return (
     <div className="space-y-2">
@@ -39,15 +67,21 @@ export function InviteLinkBox({
         <code className="min-w-0 flex-1 truncate rounded-chubby bg-cream px-3 py-2 text-xs">
           {link}
         </code>
+        {canShare && (
+          <Button
+            variant="secondary"
+            type="button"
+            className="!min-h-9 !px-3 text-sm"
+            onClick={share}
+          >
+            Share
+          </Button>
+        )}
         <Button
           variant="soft"
           type="button"
           className="!min-h-9 !px-3 text-sm"
-          onClick={async () => {
-            await navigator.clipboard.writeText(link);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
+          onClick={copy}
         >
           {copied ? "Copied!" : "Copy"}
         </Button>

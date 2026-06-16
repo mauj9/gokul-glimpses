@@ -99,3 +99,13 @@ export function PageTitle({ children }: { children: ReactNode }) {
     </h1>
   );
 }
+
+/** Pulsing placeholder block for loading states. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={`animate-pulse rounded-chubby bg-mango-soft ${className}`}
+    />
+  );
+}

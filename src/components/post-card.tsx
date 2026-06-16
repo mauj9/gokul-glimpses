@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Card, Chip } from "@/components/ui";
 import { avatarEmoji } from "@/lib/avatars";
 import { timeAgo, type FeedPost } from "@/lib/feed-types";
+import { ImageLightbox } from "./image-lightbox";
 import { PostMenu } from "./post-menu";
 import { ReactionBar } from "./reaction-bar";
 import { FlagButton } from "./flag-button";
@@ -27,6 +29,7 @@ export function PostCard({
   const images = post.media.filter((m) => m.kind === "image");
   const video = post.media.find((m) => m.kind === "video");
   const echo = post.media.find((m) => m.kind === "audio");
+  const [lightbox, setLightbox] = useState<number | null>(null);
 
   return (
     <Card className="space-y-3 !p-4">
@@ -50,21 +53,37 @@ export function PostCard({
         <div
           className={`grid gap-1.5 ${images.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
         >
-          {images.map((img) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+          {images.map((img, idx) => (
+            <button
               key={img.id}
-              src={img.url}
-              alt={`${post.child.first_name}'s glimpse`}
-              width={img.width ?? undefined}
-              height={img.height ?? undefined}
-              loading="lazy"
-              className={`w-full rounded-chubby object-cover ${
-                images.length === 1 ? "max-h-96" : "h-44"
-              }`}
-            />
+              type="button"
+              onClick={() => setLightbox(idx)}
+              aria-label={`View ${post.child.first_name}'s photo full screen`}
+              className="cursor-zoom-in overflow-hidden rounded-chubby"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.url}
+                alt={`${post.child.first_name}'s glimpse`}
+                width={img.width ?? undefined}
+                height={img.height ?? undefined}
+                loading="lazy"
+                className={`w-full object-cover ${
+                  images.length === 1 ? "max-h-96" : "h-44"
+                }`}
+              />
+            </button>
           ))}
         </div>
+      )}
+
+      {lightbox !== null && (
+        <ImageLightbox
+          images={images.map((m) => m.url)}
+          startIndex={lightbox}
+          alt={`${post.child.first_name}'s glimpse`}
+          onClose={() => setLightbox(null)}
+        />
       )}
 
       {video && (

@@ -207,6 +207,7 @@ export default async function SpacePage({
             appUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
             canRegenerate={isSpaceAdmin}
             spaceId={space.id}
+            spaceName={space.name}
           />
         </Card>
       )}
