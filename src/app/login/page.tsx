@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Sign in" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ next?: string; error?: string; deleted?: string }>;
 }) {
   const params = await searchParams;
   const next =
@@ -29,6 +29,11 @@ export default async function LoginPage({
         {params.error === "auth" && (
           <p className="mb-4 rounded-chubby bg-mango-soft px-4 py-2 text-sm font-semibold text-danger">
             Sign-in didn&apos;t complete — please try again.
+          </p>
+        )}
+        {params.deleted === "1" && (
+          <p className="mb-4 rounded-chubby bg-pistachio-soft px-4 py-2 text-sm font-semibold text-ink">
+            Your account has been deleted. 🙏
           </p>
         )}
         <GoogleSignInButton next={next} />

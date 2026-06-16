@@ -5,6 +5,7 @@ import { getActiveChildId } from "@/lib/active-child";
 import { Button, Card, PageTitle } from "@/components/ui";
 import { ChildCard } from "./child-card";
 import { ChildForm } from "./child-form";
+import { DeleteAccountButton } from "./delete-account";
 
 export const metadata: Metadata = { title: "My family" };
 
@@ -63,6 +64,10 @@ export default async function FamilyPage() {
           </Card>
         </>
       )}
+
+      <div className="pt-6 text-center">
+        <DeleteAccountButton />
+      </div>
     </main>
   );
 }

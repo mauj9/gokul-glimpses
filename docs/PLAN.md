@@ -74,10 +74,17 @@ credentials for the end-to-end staging smoke test (see DEPLOYMENT.md §4).
 - **Feeds paginate** via keyset "Load more" (20/page, newest-first); tag
   filtering runs in SQL and chips come from `space_tags(root)` (migration 0005),
   so filtering searches the whole space, not just the page.
-- **TODO (deferred — agreed June 14, 2026): real PWA icons + offline fallback.**
-  App icons in `public/icons/` are placeholder flat artwork — replace with real
-  branding. And add an offline fallback (service worker + `/offline` route);
-  today the app is installable via manifest but has no offline shell.
+- **PWA hardened (June 15, 2026):** branded icons generated via
+  `npm run gen:icons` (`scripts/gen-icons.mjs` → peacock-feather mark, incl. a
+  maskable variant); service worker (`public/sw.js`) registered in production
+  (`ServiceWorkerRegister`) with a conservative cache (offline fallback for
+  navigations + cache-first hashed assets only — never auth/HTML/media); static
+  `/offline` page. In-app account deletion added (`account-actions.ts`,
+  cascades via the auth.users FK).
+- **TODO (deferred): app-store packaging.** For a Play listing: Android TWA
+  (Bubblewrap/PWABuilder) + `assetlinks.json`. For the App Store: WKWebView
+  wrapper, Sign in with Apple (Guideline 4.8), privacy policy page, and a
+  privacy-labels pass. See the store notes discussion.
 - **Unlisted spaces are hidden, not secret:** any garden member with API
   knowledge could enumerate space names via PostgREST (their *posts* stay out
   of parent feeds regardless). Matches PRD semantics ("hidden from directory,
