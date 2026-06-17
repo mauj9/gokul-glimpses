@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { getGardenStatus } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { canAdminSpace } from "@/lib/auth/guards";
+import { isGlobalAdmin } from "@/lib/auth/admin";
 import { createServiceClient } from "@/lib/supabase/service";
 import { LEVEL_EMOJI, LEVEL_LABEL, type SpaceLevel } from "@/lib/tree";
 import { fetchFeed } from "@/lib/feed";
@@ -14,6 +15,7 @@ import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-pane
 import { ModerationQueue } from "./moderation-queue";
 import { FlagQueue } from "./flag-queue";
 import { FamiliesPanel } from "./families-panel";
+import { DeleteSpaceButton } from "@/app/(app)/admin/parvas/[id]/delete-space-button";
 import { TabBar } from "./tab-bar";
 import { TagFilterBar } from "./tag-filter";
 import { CustomTagsPanel } from "./tags-panel";
@@ -141,11 +143,13 @@ export default async function SpacePage({
   }
 
   // Admin-only: badge the Manage tab with pending posts + open flags, and (only
-  // when the About tab is open) load the space-admins list.
+  // when the About tab is open) load the space-admins list + delete eligibility.
   let manageBadge = 0;
   let adminData: {
     admins: { user_id: string; email: string; display_name: string | null }[];
   } | null = null;
+  let canDeleteThisSpace = false;
+  let deleteStats = { childSpaces: 0, posts: 0 };
   if (isSpaceAdmin) {
     const service = createServiceClient();
     const { data: sub } = await service
@@ -189,6 +193,25 @@ export default async function SpacePage({
           };
         }),
       };
+
+      // A space admin may delete a space within their subtree, but not the
+      // National apex nor a space they are directly admin of (their own role).
+      const globalAdmin = await isGlobalAdmin(user.email);
+      const directAdminOfThis = adminData.admins.some(
+        (a) => a.user_id === user.id,
+      );
+      canDeleteThisSpace =
+        space.level !== "national" && (globalAdmin || !directAdminOfThis);
+      if (canDeleteThisSpace) {
+        const { count } = await service
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .in("space_id", subIds.length ? subIds : [id]);
+        deleteStats = {
+          childSpaces: Math.max(0, subIds.length - 1),
+          posts: count ?? 0,
+        };
+      }
     }
   }
 
@@ -312,6 +335,29 @@ export default async function SpacePage({
                         level: space.level as SpaceLevel,
                       },
                     ]}
+                  />
+                </Card>
+              )}
+              {canDeleteThisSpace && (
+                <Card className="border-2 border-danger/30">
+                  <p className="mb-1 font-display font-bold text-danger">
+                    ⚠️ Danger zone
+                  </p>
+                  <p className="mb-3 text-sm text-ink-soft">
+                    Permanently delete this space and everything under it. This
+                    cannot be undone.
+                  </p>
+                  <DeleteSpaceButton
+                    spaceId={space.id}
+                    name={space.name}
+                    childSpaces={deleteStats.childSpaces}
+                    posts={deleteStats.posts}
+                    redirectTo={
+                      space.parent_space_id
+                        ? `/s/${space.parent_space_id}`
+                        : "/spaces"
+                    }
+                    label="🗑️ Delete this space"
                   />
                 </Card>
               )}

@@ -56,6 +56,14 @@ file disagree, this file wins.
     Flags land in the space-admin queue.
 12. **Soft deletes:** post deletion is a soft delete (audit trail preserved;
     parent can undo for a while; global admin can purge).
+12a. **Space deletion (June 17, 2026):** a space admin has full control over
+    their space *and its whole subtree* (settings, invite, moderation, flags,
+    posts, tags, add admins, create child spaces). They may **delete descendant
+    spaces** within their subtree, but **not** the space they are directly admin
+    of (their role-granting space — avoids self-lockout) nor the National apex.
+    Global admins may delete any non-National space. Enforced in
+    `deleteSpace` (`canAdminSpace` + a direct-`space_admins`-row check) and
+    surfaced as a Danger Zone on the space's Manage tab.
 
 ## Profiles & media
 

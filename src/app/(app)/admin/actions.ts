@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { nanoid } from "nanoid";
 import { createServiceClient } from "@/lib/supabase/service";
 import { requireUser } from "@/lib/auth/session";
-import { envAdminEmails } from "@/lib/auth/admin";
+import { envAdminEmails, isGlobalAdmin } from "@/lib/auth/admin";
 import { requireGlobalAdmin, canAdminSpace } from "@/lib/auth/guards";
 import { writeAudit } from "@/lib/audit";
 import { slugify } from "@/lib/slug";
@@ -108,11 +109,23 @@ export async function deleteParva(formData: FormData): Promise<void> {
 /**
  * Hard-delete a space and everything beneath it (child spaces, posts, media
  * rows, reactions, tags, members, admins, flags — all via ON DELETE CASCADE).
- * Global-admin only; the auto-managed National apex can't be deleted here.
+ *
+ * Allowed for global admins (any non-National space), and for space admins on a
+ * space WITHIN their subtree — but NOT a space they are directly admin of (that
+ * would delete the space granting their own role). The auto-managed National
+ * apex can never be deleted here.
+ *
+ * Pass `redirect_to` to navigate after deletion (used when deleting the space
+ * you're currently viewing).
  */
 export async function deleteSpace(formData: FormData): Promise<void> {
-  const user = await requireGlobalAdmin();
+  const user = await requireUser();
   const spaceId = String(formData.get("space_id") ?? "");
+  const redirectToRaw = String(formData.get("redirect_to") ?? "");
+  const redirectTo =
+    redirectToRaw.startsWith("/") && !redirectToRaw.startsWith("//")
+      ? redirectToRaw
+      : null;
 
   const service = createServiceClient();
   const { data: space } = await service
@@ -122,6 +135,20 @@ export async function deleteSpace(formData: FormData): Promise<void> {
     .maybeSingle();
   if (!space) return;
   if (space.level === "national") return; // managed automatically per parva
+
+  // Authorization. canAdminSpace covers global admins + admins of this space or
+  // any ancestor. Non-global admins additionally may NOT delete a space they are
+  // directly listed as admin of (their role-granting space).
+  if (!(await canAdminSpace(user, spaceId))) return;
+  if (!(await isGlobalAdmin(user.email))) {
+    const { data: directRow } = await service
+      .from("space_admins")
+      .select("space_id")
+      .eq("space_id", spaceId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (directRow) return; // can't delete the space that grants your admin role
+  }
 
   // Record the blast radius for the audit ledger before it's gone.
   const { data: descendants } = await service
@@ -153,6 +180,7 @@ export async function deleteSpace(formData: FormData): Promise<void> {
   }
   revalidatePath(`/admin/parvas/${space.parva_id}`);
   revalidatePath("/spaces");
+  if (redirectTo) redirect(redirectTo);
 }
 
 export async function createSpace(
