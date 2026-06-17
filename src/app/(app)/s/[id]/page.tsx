@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { after } from "next/server";
 import { getGardenStatus } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { canAdminSpace } from "@/lib/auth/guards";
@@ -13,6 +14,7 @@ import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-pane
 import { ModerationQueue } from "./moderation-queue";
 import { FlagQueue } from "./flag-queue";
 import { FamiliesPanel } from "./families-panel";
+import { TabBar } from "./tab-bar";
 import { TagFilterBar } from "./tag-filter";
 import { CustomTagsPanel } from "./tags-panel";
 import { EngagementCard } from "./engagement-card";
@@ -75,44 +77,6 @@ async function Feed({
   );
 }
 
-function TabBar({
-  spaceId,
-  active,
-  secondLabel,
-  badge,
-}: {
-  spaceId: string;
-  active: "glimpses" | "about";
-  secondLabel: string;
-  badge: number;
-}) {
-  const base =
-    "flex-1 rounded-chubby px-4 py-2 text-center font-display font-semibold transition-colors";
-  const on = "bg-surface text-peacock-deep shadow-chubby";
-  const off = "text-ink-soft";
-  return (
-    <div className="flex gap-2 rounded-chubby bg-mango-soft p-1">
-      <Link
-        href={`/s/${spaceId}`}
-        className={`${base} ${active === "glimpses" ? on : off}`}
-      >
-        📜 Glimpses
-      </Link>
-      <Link
-        href={`/s/${spaceId}?tab=about`}
-        className={`${base} ${active === "about" ? on : off}`}
-      >
-        {secondLabel}
-        {badge > 0 && (
-          <span className="ml-1 inline-flex min-w-5 justify-center rounded-full bg-danger px-1.5 text-xs text-white">
-            {badge}
-          </span>
-        )}
-      </Link>
-    </div>
-  );
-}
-
 export default async function SpacePage({
   params,
   searchParams,
@@ -168,8 +132,13 @@ export default async function SpacePage({
   const isMember = Boolean(membership);
   const isHome = homeSpaceId === id;
 
-  // Engagement analytics: anonymous per-space daily view counter.
-  await supabase.rpc("record_space_view", { p_space_id: id });
+  // Engagement analytics: anonymous per-space daily view counter. Runs after
+  // the response (off the critical path) and only when viewing the feed.
+  if (!aboutTab) {
+    after(async () => {
+      await supabase.rpc("record_space_view", { p_space_id: id });
+    });
+  }
 
   // Admin-only: badge the Manage tab with pending posts + open flags, and (only
   // when the About tab is open) load the space-admins list.
