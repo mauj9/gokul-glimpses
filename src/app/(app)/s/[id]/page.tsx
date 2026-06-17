@@ -12,6 +12,7 @@ import { setHomeSpace } from "../actions";
 import { InviteLinkBox, SpaceSettingsForm, SpaceAdminsPanel } from "./admin-panel";
 import { ModerationQueue } from "./moderation-queue";
 import { FlagQueue } from "./flag-queue";
+import { FamiliesPanel } from "./families-panel";
 import { TagFilterBar } from "./tag-filter";
 import { CustomTagsPanel } from "./tags-panel";
 import { EngagementCard } from "./engagement-card";
@@ -74,15 +75,54 @@ async function Feed({
   );
 }
 
+function TabBar({
+  spaceId,
+  active,
+  secondLabel,
+  badge,
+}: {
+  spaceId: string;
+  active: "glimpses" | "about";
+  secondLabel: string;
+  badge: number;
+}) {
+  const base =
+    "flex-1 rounded-chubby px-4 py-2 text-center font-display font-semibold transition-colors";
+  const on = "bg-surface text-peacock-deep shadow-chubby";
+  const off = "text-ink-soft";
+  return (
+    <div className="flex gap-2 rounded-chubby bg-mango-soft p-1">
+      <Link
+        href={`/s/${spaceId}`}
+        className={`${base} ${active === "glimpses" ? on : off}`}
+      >
+        📜 Glimpses
+      </Link>
+      <Link
+        href={`/s/${spaceId}?tab=about`}
+        className={`${base} ${active === "about" ? on : off}`}
+      >
+        {secondLabel}
+        {badge > 0 && (
+          <span className="ml-1 inline-flex min-w-5 justify-center rounded-full bg-danger px-1.5 text-xs text-white">
+            {badge}
+          </span>
+        )}
+      </Link>
+    </div>
+  );
+}
+
 export default async function SpacePage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tag?: string }>;
+  searchParams: Promise<{ tag?: string; tab?: string }>;
 }) {
   const { id } = await params;
-  const { tag } = await searchParams;
+  const { tag, tab } = await searchParams;
+  const aboutTab = tab === "about";
   const { user, hasGardenAccess, homeSpaceId } = await getGardenStatus();
   const supabase = await createClient();
 
@@ -131,35 +171,64 @@ export default async function SpacePage({
   // Engagement analytics: anonymous per-space daily view counter.
   await supabase.rpc("record_space_view", { p_space_id: id });
 
+  // Admin-only: badge the Manage tab with pending posts + open flags, and (only
+  // when the About tab is open) load the space-admins list.
+  let manageBadge = 0;
   let adminData: {
     admins: { user_id: string; email: string; display_name: string | null }[];
   } | null = null;
   if (isSpaceAdmin) {
     const service = createServiceClient();
-    const { data: adminRows } = await service
-      .from("space_admins")
-      .select("user_id, profiles(email, display_name)")
-      .eq("space_id", id);
-    adminData = {
-      admins: (adminRows ?? []).map((r) => {
-        const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-        return {
-          user_id: r.user_id,
-          email: p?.email ?? "?",
-          display_name: p?.display_name ?? null,
-        };
-      }),
-    };
+    const { data: sub } = await service
+      .from("spaces")
+      .select("id")
+      .contains("path", [id]);
+    const subIds = (sub ?? []).map((s) => s.id);
+    if (subIds.length > 0) {
+      const [{ count: pending }, { data: flagRows }] = await Promise.all([
+        service
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .in("space_id", subIds)
+          .eq("status", "pending")
+          .is("deleted_at", null),
+        service
+          .from("flags")
+          .select("id, posts!inner(space_id, deleted_at)")
+          .eq("status", "open")
+          .in("posts.space_id", subIds),
+      ]);
+      const openFlags = (flagRows ?? []).filter((f) => {
+        const p = Array.isArray(f.posts) ? f.posts[0] : f.posts;
+        return p && !p.deleted_at;
+      }).length;
+      manageBadge = (pending ?? 0) + openFlags;
+    }
+
+    if (aboutTab) {
+      const { data: adminRows } = await service
+        .from("space_admins")
+        .select("user_id, profiles(email, display_name)")
+        .eq("space_id", id);
+      adminData = {
+        admins: (adminRows ?? []).map((r) => {
+          const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          return {
+            user_id: r.user_id,
+            email: p?.email ?? "?",
+            display_name: p?.display_name ?? null,
+          };
+        }),
+      };
+    }
   }
 
   return (
     <main className="space-y-4">
       <div>
-        <div className="flex items-center gap-2">
-          <PageTitle>
-            {LEVEL_EMOJI[space.level as "shakha"]} {space.name}
-          </PageTitle>
-        </div>
+        <PageTitle>
+          {LEVEL_EMOJI[space.level as "shakha"]} {space.name}
+        </PageTitle>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
           <Chip>{LEVEL_LABEL[space.level as "shakha"]}</Chip>
           <span>{parva?.name}</span>
@@ -193,79 +262,99 @@ export default async function SpacePage({
         )}
       </div>
 
-      {(isMember || isSpaceAdmin) && (
-        <Card>
-          <p className="mb-2 font-display font-bold text-peacock-deep">
-            🔗 Invite families
-          </p>
-          <p className="mb-2 text-sm text-ink-soft">
-            Anyone with this link can join {space.name} after signing in with
-            Google.
-          </p>
-          <InviteLinkBox
-            code={space.invite_code}
-            appUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
-            canRegenerate={isSpaceAdmin}
-            spaceId={space.id}
-            spaceName={space.name}
-          />
-        </Card>
-      )}
-
-      {isSpaceAdmin && <ModerationQueue spaceId={space.id} />}
-      {isSpaceAdmin && <FlagQueue spaceId={space.id} />}
-
-      <Feed
+      <TabBar
         spaceId={space.id}
-        userId={user.id}
-        isSpaceAdmin={isSpaceAdmin}
-        isClosed={isClosed}
-        tagSlug={tag ?? null}
+        active={aboutTab ? "about" : "glimpses"}
+        secondLabel={isSpaceAdmin ? "⚙️ Manage" : "ℹ️ About"}
+        badge={manageBadge}
       />
 
-      {isSpaceAdmin && adminData && (
+      {aboutTab ? (
         <>
-          <EngagementCard spaceId={space.id} />
-          <Card>
-            <p className="mb-3 font-display font-bold text-peacock-deep">
-              ⚙️ Space settings
-            </p>
-            <SpaceSettingsForm
-              space={{
-                id: space.id,
-                name: space.name,
-                description: space.description,
-                visibility: space.visibility as "listed",
-                moderation: space.moderation as "instant",
-                invite_code: space.invite_code,
-              }}
-            />
-          </Card>
-          <Card>
-            <p className="mb-3 font-display font-bold text-peacock-deep">
-              🛡️ Space admins
-            </p>
-            <SpaceAdminsPanel spaceId={space.id} admins={adminData.admins} />
-          </Card>
-          <CustomTagsPanel spaceId={space.id} />
-          {space.level !== "shakha" && (
+          {isMember || isSpaceAdmin ? (
             <Card>
-              <p className="mb-3 font-display font-bold text-peacock-deep">
-                ➕ Add a child space
+              <p className="mb-2 font-display font-bold text-peacock-deep">
+                🔗 Invite families
               </p>
-              <SpaceForm
-                parvaId={space.parva_id}
-                parentOptions={[
-                  {
-                    id: space.id,
-                    name: space.name,
-                    level: space.level as SpaceLevel,
-                  },
-                ]}
+              <p className="mb-2 text-sm text-ink-soft">
+                Anyone with this link can join {space.name} after signing in with
+                Google.
+              </p>
+              <InviteLinkBox
+                code={space.invite_code}
+                appUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
+                canRegenerate={isSpaceAdmin}
+                spaceId={space.id}
+                spaceName={space.name}
               />
             </Card>
+          ) : (
+            <Card className="text-center text-ink-soft">
+              Join this space (with an invite link) to post and invite others.
+            </Card>
+          )}
+
+          {isSpaceAdmin && (
+            <>
+              <ModerationQueue spaceId={space.id} />
+              <FlagQueue spaceId={space.id} />
+              <FamiliesPanel spaceId={space.id} />
+              <EngagementCard spaceId={space.id} />
+              <Card>
+                <p className="mb-3 font-display font-bold text-peacock-deep">
+                  ⚙️ Space settings
+                </p>
+                <SpaceSettingsForm
+                  space={{
+                    id: space.id,
+                    name: space.name,
+                    description: space.description,
+                    visibility: space.visibility as "listed",
+                    moderation: space.moderation as "instant",
+                    invite_code: space.invite_code,
+                  }}
+                />
+              </Card>
+              <Card>
+                <p className="mb-3 font-display font-bold text-peacock-deep">
+                  🛡️ Space admins
+                </p>
+                {adminData && (
+                  <SpaceAdminsPanel
+                    spaceId={space.id}
+                    admins={adminData.admins}
+                  />
+                )}
+              </Card>
+              <CustomTagsPanel spaceId={space.id} />
+              {space.level !== "shakha" && (
+                <Card>
+                  <p className="mb-3 font-display font-bold text-peacock-deep">
+                    ➕ Add a child space
+                  </p>
+                  <SpaceForm
+                    parvaId={space.parva_id}
+                    parentOptions={[
+                      {
+                        id: space.id,
+                        name: space.name,
+                        level: space.level as SpaceLevel,
+                      },
+                    ]}
+                  />
+                </Card>
+              )}
+            </>
           )}
         </>
+      ) : (
+        <Feed
+          spaceId={space.id}
+          userId={user.id}
+          isSpaceAdmin={isSpaceAdmin}
+          isClosed={isClosed}
+          tagSlug={tag ?? null}
+        />
       )}
 
       <p className="text-center text-sm">
