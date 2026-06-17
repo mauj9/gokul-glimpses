@@ -272,22 +272,25 @@ export default async function SpacePage({
       {aboutTab ? (
         <>
           {isMember || isSpaceAdmin ? (
-            <Card>
-              <p className="mb-2 font-display font-bold text-peacock-deep">
-                🔗 Invite families
-              </p>
-              <p className="mb-2 text-sm text-ink-soft">
-                Anyone with this link can join {space.name} after signing in with
-                Google.
-              </p>
-              <InviteLinkBox
-                code={space.invite_code}
-                appUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
-                canRegenerate={isSpaceAdmin}
-                spaceId={space.id}
-                spaceName={space.name}
-              />
-            </Card>
+            <>
+              <Card>
+                <p className="mb-2 font-display font-bold text-peacock-deep">
+                  🔗 Invite families
+                </p>
+                <p className="mb-2 text-sm text-ink-soft">
+                  Anyone with this link can join {space.name} after signing in
+                  with Google.
+                </p>
+                <InviteLinkBox
+                  code={space.invite_code}
+                  appUrl={process.env.NEXT_PUBLIC_APP_URL ?? ""}
+                  canRegenerate={isSpaceAdmin}
+                  spaceId={space.id}
+                  spaceName={space.name}
+                />
+              </Card>
+              <FamiliesPanel spaceId={space.id} showEmail={isSpaceAdmin} />
+            </>
           ) : (
             <Card className="text-center text-ink-soft">
               Join this space (with an invite link) to post and invite others.
@@ -298,7 +301,6 @@ export default async function SpacePage({
             <>
               <ModerationQueue spaceId={space.id} />
               <FlagQueue spaceId={space.id} />
-              <FamiliesPanel spaceId={space.id} />
               <EngagementCard spaceId={space.id} />
               <Card>
                 <p className="mb-3 font-display font-bold text-peacock-deep">

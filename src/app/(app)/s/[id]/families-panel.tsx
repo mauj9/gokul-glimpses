@@ -5,8 +5,17 @@ import { timeAgo } from "@/lib/feed";
 
 type Child = { id: string; first_name: string; age: number; avatar: string };
 
-/** Members (families) of this space, with their children. Admin-only. */
-export async function FamiliesPanel({ spaceId }: { spaceId: string }) {
+/**
+ * Members (families) of this space, with their children. Shown to members and
+ * admins; `showEmail` (admins only) reveals the parent's email for contact.
+ */
+export async function FamiliesPanel({
+  spaceId,
+  showEmail = false,
+}: {
+  spaceId: string;
+  showEmail?: boolean;
+}) {
   const service = createServiceClient();
   const { data } = await service
     .from("space_members")
@@ -45,7 +54,7 @@ export async function FamiliesPanel({ spaceId }: { spaceId: string }) {
                   joined {timeAgo(f.joinedAt)}
                 </span>
               </div>
-              {f.email && f.email !== f.name && (
+              {showEmail && f.email && f.email !== f.name && (
                 <p className="truncate text-xs text-ink-soft">{f.email}</p>
               )}
               {f.children.length > 0 && (
